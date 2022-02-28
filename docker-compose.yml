@@ -1,0 +1,91 @@
+version: '3'
+
+services:
+  postgresql:
+    container_name: elkpg
+    image: postgres
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: userelk
+    ports:
+      - "5432:5432"
+    env_file:
+      - core.env
+  pgadmin:
+      container_name: elkpgadmin4
+      image: dpage/pgadmin4
+      environment:
+        PGADMIN_DEFAULT_EMAIL: admin@admin.com
+        PGADMIN_DEFAULT_PASSWORD: root
+      ports:
+        - "5050:80"
+  logger:
+    image:  muharremkoc/elkfilebeatdb
+    ports:
+      - "8880:8880"
+    volumes:
+      - ./logs:/logs:rw
+    links:
+      - "logstash:logstash"
+    depends_on:
+      - kibana
+      - postgresql
+    env_file:
+      - core.env
+  filebeat:
+    image: muharremkoc/filebeat
+
+    links:
+      - "logstash:logstash"
+    volumes:
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logs:/logs:rw
+
+
+  logstash:
+    image: muharremkoc/logstash
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./logs:/logs:rw
+    links:
+      - "elasticsearch:elasticsearch"
+    depends_on:
+      - elasticsearch
+
+  elasticsearch:
+    image: elasticsearch:6.8.7
+    environment:
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - discovery.type=single-node
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+    volumes:
+      - ./logs:/logs:rw
+
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  kibana:
+    image: kibana:6.8.7
+    environment:
+      SERVER_NAME: kibana.example.org
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    links:
+      - "elasticsearch:elasticsearch"
+    volumes:
+      - ./logs:/logs:rw
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
